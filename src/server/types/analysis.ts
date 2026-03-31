@@ -17,6 +17,10 @@ export interface AnalyzerResult<TData = unknown> {
 export interface AnalysisSummaryMetrics {
   moduleCount: number;
   completedAtIso: string;
+  totalInternalLinks: number;
+  totalExternalLinks: number;
+  totalImages: number;
+  totalWords: number;
 }
 
 export interface AnalyzeWebsiteResponse {
