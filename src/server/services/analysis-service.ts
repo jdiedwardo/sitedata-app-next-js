@@ -2,7 +2,9 @@ import { AnalyticsModuleRegistry } from "@/server/modules/module-registry";
 import type { AnalysisRepository } from "@/server/storage/analysis-repository";
 import { JsonAnalysisRepository } from "@/server/storage/json-analysis-repository";
 import type { AnalyzeWebsiteRequest, AnalyzeWebsiteResponse } from "@/server/types/analysis";
-import { validateWebsiteUrl } from "@/server/utils/url-validation";
+import { fetchWithTimeout } from "@/server/utils/fetch-with-timeout";
+import { parseHtmlToDocument } from "@/server/utils/html-parser";
+import { normalizeAndValidateWebsiteUrl } from "@/server/utils/url-validation";
 
 export class AnalysisService {
   constructor(
@@ -12,14 +14,25 @@ export class AnalysisService {
 
   async analyzeWebsite(request: AnalyzeWebsiteRequest): Promise<AnalyzeWebsiteResponse> {
     const startedAtIso = new Date().toISOString();
-    const validatedUrl = validateWebsiteUrl(request.targetUrl);
+    const validatedUrl = normalizeAndValidateWebsiteUrl(request.targetUrl);
+    const fetchResponse = await fetchWithTimeout(validatedUrl, { timeoutMs: 10000 });
+    const html = await fetchResponse.text();
+    const parsedDocument = parseHtmlToDocument(html);
 
-    // Step 1 placeholder response. Real fetch/parse/module execution starts in Step 2+.
     const result: AnalyzeWebsiteResponse = {
       metadata: {
         targetUrl: validatedUrl.toString(),
         startedAtIso,
         completedAtIso: new Date().toISOString(),
+        fetch: {
+          statusCode: fetchResponse.status,
+          contentType: fetchResponse.headers.get("content-type"),
+          htmlSizeBytes: Buffer.byteLength(html, "utf8"),
+        },
+        parsedDocument: {
+          title: parsedDocument.metadata.title,
+          description: parsedDocument.metadata.description,
+        },
       },
       moduleResults: [],
       summaryMetrics: {

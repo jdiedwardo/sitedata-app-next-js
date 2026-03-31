@@ -24,6 +24,15 @@ export interface AnalyzeWebsiteResponse {
     targetUrl: string;
     startedAtIso: string;
     completedAtIso: string;
+    fetch: {
+      statusCode: number;
+      contentType: string | null;
+      htmlSizeBytes: number;
+    };
+    parsedDocument: {
+      title: string | null;
+      description: string | null;
+    };
   };
   moduleResults: AnalyzerResult[];
   summaryMetrics: AnalysisSummaryMetrics;
