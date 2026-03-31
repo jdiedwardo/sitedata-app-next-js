@@ -15,7 +15,7 @@ export class ContentAnalyzer implements AnalyticsModule {
   async analyze(context: AnalyzerRunContext): Promise<AnalyzerResult<ContentAnalyzerResultData>> {
     const snapshots = resolveCrawledPageSnapshots(context);
     const bodyText = snapshots
-      .map((snapshot) => getParsedDocument(snapshot).dom("body").text().replace(/\s+/g, " ").trim().toLowerCase())
+      .map((snapshot) => extractLikelyContentText(getParsedDocument(snapshot).dom))
       .filter((text) => text.length > 0)
       .join(" ");
     const words = bodyText.match(/[a-z0-9']+/g) ?? [];
@@ -37,6 +37,22 @@ export class ContentAnalyzer implements AnalyticsModule {
       "you",
       "our",
       "not",
+      "name",
+      "url",
+      "field",
+      "fields",
+      "submit",
+      "click",
+      "menu",
+      "home",
+      "contact",
+      "login",
+      "sign",
+      "search",
+      "page",
+      "site",
+      "read",
+      "more",
     ]);
 
     const frequencyMap = new Map<string, number>();
@@ -62,4 +78,17 @@ export class ContentAnalyzer implements AnalyticsModule {
       },
     };
   }
+}
+
+function extractLikelyContentText(dom: ReturnType<typeof getParsedDocument>["dom"]): string {
+  const clonedRoot = dom.root().clone();
+
+  // Remove common template/UI containers and non-readable nodes.
+  clonedRoot.find("script, style, noscript, nav, header, footer, aside, form, svg").remove();
+
+  const mainCandidates = clonedRoot.find("main, article, [role='main']");
+  const extractedText =
+    (mainCandidates.length > 0 ? mainCandidates.first().text() : clonedRoot.find("body").text()) ?? "";
+
+  return extractedText.replace(/\s+/g, " ").trim().toLowerCase();
 }
