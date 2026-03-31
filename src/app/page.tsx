@@ -49,6 +49,43 @@ function getModuleData<TData>(moduleResults: AnalyzerResult[], moduleId: string)
   return (result?.data as TData | undefined) ?? null;
 }
 
+function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const objectUrl = URL.createObjectURL(blob);
+  const linkElement = document.createElement("a");
+  linkElement.href = objectUrl;
+  linkElement.download = filename;
+  linkElement.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function createCsvRow(values: Array<string | number>): string {
+  return values
+    .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+    .join(",");
+}
+
+function buildAnalysisCsv(responsePayload: AnalyzeWebsiteResponse): string {
+  const rows: string[] = [];
+
+  rows.push(createCsvRow(["section", "key", "value"]));
+  rows.push(createCsvRow(["metadata", "targetUrl", responsePayload.metadata.targetUrl]));
+  rows.push(createCsvRow(["metadata", "title", responsePayload.metadata.parsedDocument.title ?? ""]));
+  rows.push(
+    createCsvRow(["metadata", "description", responsePayload.metadata.parsedDocument.description ?? ""]),
+  );
+  rows.push(createCsvRow(["summary", "totalWords", responsePayload.summaryMetrics.totalWords]));
+  rows.push(createCsvRow(["summary", "totalImages", responsePayload.summaryMetrics.totalImages]));
+  rows.push(createCsvRow(["summary", "internalLinks", responsePayload.summaryMetrics.totalInternalLinks]));
+  rows.push(createCsvRow(["summary", "externalLinks", responsePayload.summaryMetrics.totalExternalLinks]));
+
+  for (const moduleResult of responsePayload.moduleResults) {
+    rows.push(createCsvRow(["module", moduleResult.moduleId, JSON.stringify(moduleResult.data)]));
+  }
+
+  return rows.join("\n");
+}
+
 export default function HomePage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,7 +140,11 @@ export default function HomePage() {
             </button>
           </div>
         </form>
-        {errorMessage ? <p>{errorMessage}</p> : null}
+        {isSubmitting ? <p className="statusMessage">Analyzing website, please wait...</p> : null}
+        {!isSubmitting && errorMessage ? <p className="errorMessage">{errorMessage}</p> : null}
+        {!isSubmitting && !responsePayload && !errorMessage ? (
+          <p className="statusMessage">No analysis yet. Submit a URL to start.</p>
+        ) : null}
       </section>
 
       {responsePayload ? <AnalysisResults responsePayload={responsePayload} /> : null}
@@ -120,6 +161,32 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
 
   return (
     <div className="results">
+      <section className="panel">
+        <h2>Export</h2>
+        <div className="row">
+          <button
+            type="button"
+            onClick={() =>
+              downloadTextFile(
+                "analysis-result.json",
+                JSON.stringify(responsePayload, null, 2),
+                "application/json;charset=utf-8",
+              )
+            }
+          >
+            Download JSON
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              downloadTextFile("analysis-result.csv", buildAnalysisCsv(responsePayload), "text/csv;charset=utf-8")
+            }
+          >
+            Download CSV
+          </button>
+        </div>
+      </section>
+
       <section className="panel">
         <h2>Summary Metrics</h2>
         <table>

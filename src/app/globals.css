@@ -53,6 +53,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .results {
   margin-top: 1rem;
 }
@@ -86,6 +91,16 @@ td {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+}
+
+.statusMessage {
+  margin: 0.75rem 0 0;
+  color: #374151;
+}
+
+.errorMessage {
+  margin: 0.75rem 0 0;
+  color: #b91c1c;
 }
 
 @media (max-width: 860px) {
