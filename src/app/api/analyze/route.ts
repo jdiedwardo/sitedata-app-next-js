@@ -13,7 +13,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "A targetUrl string is required." }, { status: 400 });
     }
 
-    const result = await analysisService.analyzeWebsite({ targetUrl: requestBody.targetUrl });
+    const maxPages = parseOptionalMaxPages(requestBody.maxPages);
+    const result = await analysisService.analyzeWebsite({ targetUrl: requestBody.targetUrl, maxPages });
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     if (error instanceof AnalysisInputError) {
@@ -27,4 +28,23 @@ export async function POST(request: Request): Promise<NextResponse> {
     const message = error instanceof Error ? error.message : "Unexpected error.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function parseOptionalMaxPages(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
 }

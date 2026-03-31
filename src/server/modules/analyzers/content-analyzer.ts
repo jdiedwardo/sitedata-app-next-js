@@ -1,6 +1,6 @@
 import type { AnalyticsModule } from "@/server/modules/analytics-module";
+import { getParsedDocument, resolveCrawledPageSnapshots } from "@/server/modules/crawl-pages";
 import type { AnalyzerResult, AnalyzerRunContext } from "@/server/types/analysis";
-import type { ParsedHtmlDocument } from "@/server/utils/html-parser";
 
 interface ContentAnalyzerResultData {
   wordCount: number;
@@ -13,8 +13,11 @@ export class ContentAnalyzer implements AnalyticsModule {
   readonly name = "Content Analyzer";
 
   async analyze(context: AnalyzerRunContext): Promise<AnalyzerResult<ContentAnalyzerResultData>> {
-    const parsedDocument = context.parsedDocument as ParsedHtmlDocument;
-    const bodyText = parsedDocument.dom("body").text().replace(/\s+/g, " ").trim().toLowerCase();
+    const snapshots = resolveCrawledPageSnapshots(context);
+    const bodyText = snapshots
+      .map((snapshot) => getParsedDocument(snapshot).dom("body").text().replace(/\s+/g, " ").trim().toLowerCase())
+      .filter((text) => text.length > 0)
+      .join(" ");
     const words = bodyText.match(/[a-z0-9']+/g) ?? [];
     const wordCount = words.length;
     const estimatedReadingTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));

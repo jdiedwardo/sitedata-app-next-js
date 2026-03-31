@@ -21,7 +21,7 @@ interface MetadataModuleData {
 }
 
 interface HeadingModuleData {
-  hierarchy: Array<{ level: "h1" | "h2" | "h3"; text: string }>;
+  hierarchy: Array<{ level: "h1" | "h2" | "h3"; text: string; pageUrl?: string }>;
   counts: { h1: number; h2: number; h3: number };
 }
 
@@ -59,7 +59,7 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
   URL.revokeObjectURL(objectUrl);
 }
 
-function createCsvRow(values: Array<string | number>): string {
+function createCsvRow(values: Array<string | number | boolean>): string {
   return values
     .map((value) => `"${String(value).replaceAll('"', '""')}"`)
     .join(",");
@@ -78,6 +78,10 @@ function buildAnalysisCsv(responsePayload: AnalyzeWebsiteResponse): string {
   rows.push(createCsvRow(["summary", "totalImages", responsePayload.summaryMetrics.totalImages]));
   rows.push(createCsvRow(["summary", "internalLinks", responsePayload.summaryMetrics.totalInternalLinks]));
   rows.push(createCsvRow(["summary", "externalLinks", responsePayload.summaryMetrics.totalExternalLinks]));
+  rows.push(createCsvRow(["crawl", "pagesCrawled", responsePayload.metadata.crawl.pagesCrawled]));
+  rows.push(createCsvRow(["crawl", "maxPages", responsePayload.metadata.crawl.maxPages]));
+  rows.push(createCsvRow(["crawl", "limitReached", responsePayload.metadata.crawl.limitReached]));
+  rows.push(createCsvRow(["crawl", "totalHtmlBytes", responsePayload.metadata.crawl.totalHtmlBytes]));
 
   for (const moduleResult of responsePayload.moduleResults) {
     rows.push(createCsvRow(["module", moduleResult.moduleId, JSON.stringify(moduleResult.data)]));
@@ -88,6 +92,7 @@ function buildAnalysisCsv(responsePayload: AnalyzeWebsiteResponse): string {
 
 export default function HomePage() {
   const [targetUrl, setTargetUrl] = useState("");
+  const [maxPages, setMaxPages] = useState(50);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [responsePayload, setResponsePayload] = useState<AnalyzeWebsiteResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -102,7 +107,7 @@ export default function HomePage() {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUrl }),
+        body: JSON.stringify({ targetUrl, maxPages }),
       });
 
       const payload = (await response.json()) as AnalyzeWebsiteResponse | { error: string };
@@ -124,7 +129,10 @@ export default function HomePage() {
   return (
     <main>
       <h1>SiteData Analytics</h1>
-      <p>Submit a URL to analyze website metadata, headings, links, content, and images.</p>
+      <p>
+        Submit a URL to crawl same-origin pages (default 50, max 200) and aggregate metadata, headings, links, content,
+        and images.
+      </p>
       <section className="panel">
         <form onSubmit={handleSubmit}>
           <div className="row">
@@ -135,6 +143,16 @@ export default function HomePage() {
               value={targetUrl}
               onChange={(event) => setTargetUrl(event.target.value)}
             />
+            <label className="maxPagesLabel">
+              Max pages
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={maxPages}
+                onChange={(event) => setMaxPages(Number(event.target.value))}
+              />
+            </label>
             <button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Analyzing..." : "Analyze"}
             </button>
@@ -158,6 +176,7 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
   const linkData = getModuleData<LinkModuleData>(responsePayload.moduleResults, "link-analysis");
   const contentData = getModuleData<ContentModuleData>(responsePayload.moduleResults, "content-analysis");
   const imageData = getModuleData<ImageModuleData>(responsePayload.moduleResults, "image-analysis");
+  const showHeadingPageColumn = headingData?.hierarchy.some((heading) => heading.pageUrl) ?? false;
 
   return (
     <div className="results">
@@ -215,6 +234,17 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
               <th>Images</th>
               <td>{responsePayload.summaryMetrics.totalImages}</td>
             </tr>
+            <tr>
+              <th>Pages Crawled</th>
+              <td>
+                {responsePayload.metadata.crawl.pagesCrawled} / {responsePayload.metadata.crawl.maxPages}
+                {responsePayload.metadata.crawl.limitReached ? " (limit reached)" : ""}
+              </td>
+            </tr>
+            <tr>
+              <th>Crawl HTML (total bytes)</th>
+              <td>{responsePayload.metadata.crawl.totalHtmlBytes}</td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -242,6 +272,10 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
             <tr>
               <th>HTML Size (bytes)</th>
               <td>{responsePayload.metadata.fetch.htmlSizeBytes}</td>
+            </tr>
+            <tr>
+              <th>Entry page crawl</th>
+              <td>First page in crawl order (used for title/description snapshot)</td>
             </tr>
           </tbody>
         </table>
@@ -292,13 +326,15 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
               <thead>
                 <tr>
                   <th>Level</th>
+                  {showHeadingPageColumn ? <th>Page</th> : null}
                   <th>Text</th>
                 </tr>
               </thead>
               <tbody>
                 {headingData.hierarchy.slice(0, 20).map((heading, index) => (
-                  <tr key={`${heading.level}-${index}`}>
+                  <tr key={`${heading.pageUrl ?? "single"}-${heading.level}-${index}`}>
                     <td>{heading.level.toUpperCase()}</td>
+                    {showHeadingPageColumn ? <td className="cellMuted">{heading.pageUrl ?? "—"}</td> : null}
                     <td>{heading.text || "Empty"}</td>
                   </tr>
                 ))}
@@ -335,7 +371,7 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
               <h3>Internal Links</h3>
               <table>
                 <tbody>
-                  {linkData.internalLinks.slice(0, 15).map((url) => (
+                  {linkData.internalLinks.slice(0, 50).map((url) => (
                     <tr key={url}>
                       <td>{url}</td>
                     </tr>
@@ -347,7 +383,7 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
               <h3>External Links</h3>
               <table>
                 <tbody>
-                  {linkData.externalLinks.slice(0, 15).map((url) => (
+                  {linkData.externalLinks.slice(0, 50).map((url) => (
                     <tr key={url}>
                       <td>{url}</td>
                     </tr>

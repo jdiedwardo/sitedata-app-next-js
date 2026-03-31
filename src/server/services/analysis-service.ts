@@ -1,10 +1,13 @@
+import { AnalysisFetchError } from "@/server/errors/analysis-errors";
+import { crawlSameOriginSite } from "@/server/crawler/site-crawler";
 import { createDefaultAnalyticsModuleRegistry } from "@/server/modules/register-default-modules";
 import type { AnalysisRepository } from "@/server/storage/analysis-repository";
 import { JsonAnalysisRepository } from "@/server/storage/json-analysis-repository";
-import type { AnalyzeWebsiteRequest, AnalyzeWebsiteResponse } from "@/server/types/analysis";
-import { fetchWithTimeout } from "@/server/utils/fetch-with-timeout";
-import { parseHtmlToDocument } from "@/server/utils/html-parser";
+import type { AnalyzeWebsiteRequest, AnalyzeWebsiteResponse, CrawledPageSnapshot } from "@/server/types/analysis";
 import { normalizeAndValidateWebsiteUrl } from "@/server/utils/url-validation";
+
+const DEFAULT_MAX_PAGES = 50;
+const ABSOLUTE_MAX_PAGES = 200;
 
 export class AnalysisService {
   constructor(
@@ -15,15 +18,37 @@ export class AnalysisService {
   async analyzeWebsite(request: AnalyzeWebsiteRequest): Promise<AnalyzeWebsiteResponse> {
     const startedAtIso = new Date().toISOString();
     const validatedUrl = normalizeAndValidateWebsiteUrl(request.targetUrl);
-    const fetchResponse = await fetchWithTimeout(validatedUrl, { timeoutMs: 10000 });
-    const html = await fetchResponse.text();
-    const parsedDocument = parseHtmlToDocument(html);
+    const maxPages = clampMaxPages(request.maxPages);
+
+    const crawlOutcome = await crawlSameOriginSite({
+      startUrl: validatedUrl,
+      maxPages,
+      timeoutMs: 10000,
+    });
+
+    if (crawlOutcome.pages.length === 0) {
+      throw new AnalysisFetchError("Unable to crawl any pages for the provided URL.");
+    }
+
+    const crawlPages: CrawledPageSnapshot[] = crawlOutcome.pages.map((page) => ({
+      url: page.url,
+      html: page.html,
+      parsedDocument: page.parsedDocument,
+    }));
+
+    const primaryPage = crawlOutcome.pages[0];
+    const totalHtmlBytes = crawlOutcome.pages.reduce(
+      (total, page) => total + Buffer.byteLength(page.html, "utf8"),
+      0,
+    );
+
     const moduleResults = await Promise.all(
       this.moduleRegistry.getModules().map((module) =>
         module.analyze({
           targetUrl: validatedUrl.toString(),
-          html,
-          parsedDocument,
+          html: primaryPage.html,
+          parsedDocument: primaryPage.parsedDocument,
+          crawlPages,
         }),
       ),
     );
@@ -43,13 +68,19 @@ export class AnalysisService {
         startedAtIso,
         completedAtIso: new Date().toISOString(),
         fetch: {
-          statusCode: fetchResponse.status,
-          contentType: fetchResponse.headers.get("content-type"),
-          htmlSizeBytes: Buffer.byteLength(html, "utf8"),
+          statusCode: primaryPage.statusCode,
+          contentType: primaryPage.contentType,
+          htmlSizeBytes: Buffer.byteLength(primaryPage.html, "utf8"),
         },
         parsedDocument: {
-          title: parsedDocument.metadata.title,
-          description: parsedDocument.metadata.description,
+          title: primaryPage.parsedDocument.metadata.title,
+          description: primaryPage.parsedDocument.metadata.description,
+        },
+        crawl: {
+          pagesCrawled: crawlOutcome.pages.length,
+          maxPages,
+          limitReached: crawlOutcome.limitReached,
+          totalHtmlBytes,
         },
       },
       moduleResults,
@@ -66,4 +97,13 @@ export class AnalysisService {
     await this.repository.saveAnalysisResult(result);
     return result;
   }
+}
+
+function clampMaxPages(requestedMaxPages: number | undefined): number {
+  if (requestedMaxPages === undefined || Number.isNaN(requestedMaxPages)) {
+    return DEFAULT_MAX_PAGES;
+  }
+
+  const rounded = Math.floor(requestedMaxPages);
+  return Math.min(ABSOLUTE_MAX_PAGES, Math.max(1, rounded));
 }

@@ -1,6 +1,6 @@
 import type { AnalyticsModule } from "@/server/modules/analytics-module";
+import { getParsedDocument, resolveCrawledPageSnapshots } from "@/server/modules/crawl-pages";
 import type { AnalyzerResult, AnalyzerRunContext } from "@/server/types/analysis";
-import type { ParsedHtmlDocument } from "@/server/utils/html-parser";
 
 interface ImageAnalyzerResultData {
   totalImages: number;
@@ -14,14 +14,20 @@ export class ImageAnalyzer implements AnalyticsModule {
   readonly name = "Image Analyzer";
 
   async analyze(context: AnalyzerRunContext): Promise<AnalyzerResult<ImageAnalyzerResultData>> {
-    const parsedDocument = context.parsedDocument as ParsedHtmlDocument;
-    const images = parsedDocument.dom("img").toArray();
-    const imagesWithAltText = images.filter((image) => {
-      const altText = parsedDocument.dom(image).attr("alt")?.trim() ?? "";
-      return altText.length > 0;
-    }).length;
+    const snapshots = resolveCrawledPageSnapshots(context);
+    let imagesWithAltText = 0;
+    let totalImages = 0;
 
-    const totalImages = images.length;
+    for (const snapshot of snapshots) {
+      const parsedDocument = getParsedDocument(snapshot);
+      const images = parsedDocument.dom("img").toArray();
+      totalImages += images.length;
+      imagesWithAltText += images.filter((image) => {
+        const altText = parsedDocument.dom(image).attr("alt")?.trim() ?? "";
+        return altText.length > 0;
+      }).length;
+    }
+
     const imagesMissingAltText = totalImages - imagesWithAltText;
     const altCoveragePercent = totalImages === 0 ? 100 : Math.round((imagesWithAltText / totalImages) * 100);
 

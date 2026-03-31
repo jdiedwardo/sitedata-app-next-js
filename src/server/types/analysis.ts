@@ -1,11 +1,27 @@
 export interface AnalyzeWebsiteRequest {
   targetUrl: string;
+  /**
+   * Maximum same-origin HTML pages to fetch during a crawl (default 50, max 200).
+   * Use 1 to analyze only the entry URL without following internal links.
+   */
+  maxPages?: number;
+}
+
+export interface CrawledPageSnapshot {
+  url: string;
+  html: string;
+  parsedDocument: unknown;
 }
 
 export interface AnalyzerRunContext {
   targetUrl: string;
   html: string;
   parsedDocument: unknown;
+  /**
+   * When set, analyzers aggregate across these pages (same-origin crawl).
+   * Otherwise the single-page fields above are used.
+   */
+  crawlPages?: CrawledPageSnapshot[];
 }
 
 export interface AnalyzerResult<TData = unknown> {
@@ -36,6 +52,12 @@ export interface AnalyzeWebsiteResponse {
     parsedDocument: {
       title: string | null;
       description: string | null;
+    };
+    crawl: {
+      pagesCrawled: number;
+      maxPages: number;
+      limitReached: boolean;
+      totalHtmlBytes: number;
     };
   };
   moduleResults: AnalyzerResult[];

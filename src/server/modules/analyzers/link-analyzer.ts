@@ -1,6 +1,6 @@
 import type { AnalyticsModule } from "@/server/modules/analytics-module";
+import { getParsedDocument, resolveCrawledPageSnapshots } from "@/server/modules/crawl-pages";
 import type { AnalyzerResult, AnalyzerRunContext } from "@/server/types/analysis";
-import type { ParsedHtmlDocument } from "@/server/utils/html-parser";
 
 interface LinkAnalyzerResultData {
   internalLinks: string[];
@@ -16,28 +16,31 @@ export class LinkAnalyzer implements AnalyticsModule {
   readonly name = "Link Analyzer";
 
   async analyze(context: AnalyzerRunContext): Promise<AnalyzerResult<LinkAnalyzerResultData>> {
-    const parsedDocument = context.parsedDocument as ParsedHtmlDocument;
+    const snapshots = resolveCrawledPageSnapshots(context);
     const baseOrigin = new URL(context.targetUrl).origin;
     const internalLinks = new Set<string>();
     const externalLinks = new Set<string>();
 
-    parsedDocument.dom("a[href]").toArray().forEach((element) => {
-      const href = parsedDocument.dom(element).attr("href")?.trim();
-      if (!href) {
-        return;
-      }
-
-      try {
-        const resolved = new URL(href, context.targetUrl);
-        if (resolved.origin === baseOrigin) {
-          internalLinks.add(resolved.toString());
-        } else {
-          externalLinks.add(resolved.toString());
+    for (const snapshot of snapshots) {
+      const parsedDocument = getParsedDocument(snapshot);
+      parsedDocument.dom("a[href]").toArray().forEach((element) => {
+        const href = parsedDocument.dom(element).attr("href")?.trim();
+        if (!href) {
+          return;
         }
-      } catch {
-        // Skip malformed URLs silently.
-      }
-    });
+
+        try {
+          const resolved = new URL(href, snapshot.url);
+          if (resolved.origin === baseOrigin) {
+            internalLinks.add(resolved.toString());
+          } else {
+            externalLinks.add(resolved.toString());
+          }
+        } catch {
+          // Skip malformed URLs silently.
+        }
+      });
+    }
 
     return {
       moduleId: this.id,

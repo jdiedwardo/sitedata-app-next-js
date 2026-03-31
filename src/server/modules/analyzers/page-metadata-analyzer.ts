@@ -1,6 +1,6 @@
 import type { AnalyticsModule } from "@/server/modules/analytics-module";
+import { getParsedDocument, resolveCrawledPageSnapshots } from "@/server/modules/crawl-pages";
 import type { AnalyzerResult, AnalyzerRunContext } from "@/server/types/analysis";
-import type { ParsedHtmlDocument } from "@/server/utils/html-parser";
 
 interface PageMetadataResultData {
   title: string | null;
@@ -13,7 +13,8 @@ export class PageMetadataAnalyzer implements AnalyticsModule {
   readonly name = "Page Metadata Analyzer";
 
   async analyze(context: AnalyzerRunContext): Promise<AnalyzerResult<PageMetadataResultData>> {
-    const parsedDocument = context.parsedDocument as ParsedHtmlDocument;
+    const snapshots = resolveCrawledPageSnapshots(context);
+    const parsedDocument = getParsedDocument(snapshots[0]);
     const metaTags = parsedDocument.dom("meta[name], meta[property]")
       .toArray()
       .map((element) => {
