@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, ReactNode, useState } from "react";
+import Image from "next/image";
 import {
   Bar,
   BarChart,
@@ -90,6 +91,90 @@ function buildAnalysisCsv(responsePayload: AnalyzeWebsiteResponse): string {
   return rows.join("\n");
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M20 20l-4.2-4.2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 4v10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 13l-7 7-9-9V4h7z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function HeadingIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16M4 12h11M4 17h7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="7" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx="17" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M10 12h4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 3h7l5 5v13H7z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M14 3v5h5M10 13h6M10 17h6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" fill="none" stroke="currentColor" strokeWidth="2" rx="2" />
+      <circle cx="9" cy="10" r="1.5" fill="currentColor" />
+      <path d="M5 17l5-4 3 2 4-3 2 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HourglassIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 4h10M7 20h10M8 4c0 4 4 4 4 8s-4 4-4 8M16 4c0 4-4 4-4 8s4 4 4 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ButtonContent({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <span className="buttonContent">
+      <span className="buttonIcon" aria-hidden="true">
+        {icon}
+      </span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
 export default function HomePage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [maxPages, setMaxPages] = useState(50);
@@ -128,7 +213,9 @@ export default function HomePage() {
 
   return (
     <main>
-      <h1>SiteData Analytics</h1>
+      <div className="logoHeader">
+        <Image src="/SiteDataAnalyticsLogo.png" alt="SiteData Analytics" width={1089} height={166} priority />
+      </div>
       <p>
         Submit a URL to crawl same-origin pages (default 50, max 200) and aggregate metadata, headings, links, content,
         and images.
@@ -154,7 +241,7 @@ export default function HomePage() {
               />
             </label>
             <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Analyzing..." : "Analyze"}
+              {isSubmitting ? <ButtonContent icon={<HourglassIcon />} label="Analyzing..." /> : <ButtonContent icon={<SearchIcon />} label="Analyze" />}
             </button>
           </div>
         </form>
@@ -170,6 +257,8 @@ export default function HomePage() {
   );
 }
 
+type ModuleTabId = "page-metadata" | "heading-structure" | "link-analysis" | "content-analysis" | "image-analysis";
+
 function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteResponse }) {
   const metadataData = getModuleData<MetadataModuleData>(responsePayload.moduleResults, "page-metadata");
   const headingData = getModuleData<HeadingModuleData>(responsePayload.moduleResults, "heading-structure");
@@ -177,9 +266,43 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
   const contentData = getModuleData<ContentModuleData>(responsePayload.moduleResults, "content-analysis");
   const imageData = getModuleData<ImageModuleData>(responsePayload.moduleResults, "image-analysis");
   const showHeadingPageColumn = headingData?.hierarchy.some((heading) => heading.pageUrl) ?? false;
+  const [activeTabId, setActiveTabId] = useState<ModuleTabId>("page-metadata");
 
   return (
     <div className="results">
+      <section className="panel">
+        <h2>Summary</h2>
+        <table>
+          <tbody>
+            <tr>
+              <th>Analyzed URL</th>
+              <td>{responsePayload.metadata.targetUrl}</td>
+            </tr>
+            <tr>
+              <th>Pages Crawled</th>
+              <td>
+                {responsePayload.metadata.crawl.pagesCrawled} / {responsePayload.metadata.crawl.maxPages}
+                {responsePayload.metadata.crawl.limitReached ? " (limit reached)" : ""}
+              </td>
+            </tr>
+            <tr>
+              <th>Words</th>
+              <td>{responsePayload.summaryMetrics.totalWords}</td>
+            </tr>
+            <tr>
+              <th>Internal / External Links</th>
+              <td>
+                {responsePayload.summaryMetrics.totalInternalLinks} / {responsePayload.summaryMetrics.totalExternalLinks}
+              </td>
+            </tr>
+            <tr>
+              <th>Images</th>
+              <td>{responsePayload.summaryMetrics.totalImages}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <section className="panel">
         <h2>Export</h2>
         <div className="row">
@@ -193,7 +316,7 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
               )
             }
           >
-            Download JSON
+            <ButtonContent icon={<DownloadIcon />} label="Download JSON" />
           </button>
           <button
             type="button"
@@ -201,280 +324,274 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
               downloadTextFile("analysis-result.csv", buildAnalysisCsv(responsePayload), "text/csv;charset=utf-8")
             }
           >
-            Download CSV
+            <ButtonContent icon={<DownloadIcon />} label="Download CSV" />
           </button>
         </div>
       </section>
 
       <section className="panel">
-        <h2>Summary Metrics</h2>
-        <table>
-          <tbody>
-            <tr>
-              <th>Analyzed URL</th>
-              <td>{responsePayload.metadata.targetUrl}</td>
-            </tr>
-            <tr>
-              <th>Modules Run</th>
-              <td>{responsePayload.summaryMetrics.moduleCount}</td>
-            </tr>
-            <tr>
-              <th>Words</th>
-              <td>{responsePayload.summaryMetrics.totalWords}</td>
-            </tr>
-            <tr>
-              <th>Internal Links</th>
-              <td>{responsePayload.summaryMetrics.totalInternalLinks}</td>
-            </tr>
-            <tr>
-              <th>External Links</th>
-              <td>{responsePayload.summaryMetrics.totalExternalLinks}</td>
-            </tr>
-            <tr>
-              <th>Images</th>
-              <td>{responsePayload.summaryMetrics.totalImages}</td>
-            </tr>
-            <tr>
-              <th>Pages Crawled</th>
-              <td>
-                {responsePayload.metadata.crawl.pagesCrawled} / {responsePayload.metadata.crawl.maxPages}
-                {responsePayload.metadata.crawl.limitReached ? " (limit reached)" : ""}
-              </td>
-            </tr>
-            <tr>
-              <th>Crawl HTML (total bytes)</th>
-              <td>{responsePayload.metadata.crawl.totalHtmlBytes}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+        <h2>Analytics Modules</h2>
+        <div className="tabRow" role="tablist" aria-label="Analytics modules">
+          <button
+            type="button"
+            className={activeTabId === "page-metadata" ? "tabButton active" : "tabButton"}
+            onClick={() => setActiveTabId("page-metadata")}
+          >
+            <ButtonContent icon={<TagIcon />} label="Metadata" />
+          </button>
+          <button
+            type="button"
+            className={activeTabId === "heading-structure" ? "tabButton active" : "tabButton"}
+            onClick={() => setActiveTabId("heading-structure")}
+          >
+            <ButtonContent icon={<HeadingIcon />} label="Headings" />
+          </button>
+          <button
+            type="button"
+            className={activeTabId === "link-analysis" ? "tabButton active" : "tabButton"}
+            onClick={() => setActiveTabId("link-analysis")}
+          >
+            <ButtonContent icon={<LinkIcon />} label="Links" />
+          </button>
+          <button
+            type="button"
+            className={activeTabId === "content-analysis" ? "tabButton active" : "tabButton"}
+            onClick={() => setActiveTabId("content-analysis")}
+          >
+            <ButtonContent icon={<DocumentIcon />} label="Content" />
+          </button>
+          <button
+            type="button"
+            className={activeTabId === "image-analysis" ? "tabButton active" : "tabButton"}
+            onClick={() => setActiveTabId("image-analysis")}
+          >
+            <ButtonContent icon={<ImageIcon />} label="Images" />
+          </button>
+        </div>
 
-      <section className="panel">
-        <h2>Metadata</h2>
-        <table>
-          <tbody>
-            <tr>
-              <th>Document Title</th>
-              <td>{responsePayload.metadata.parsedDocument.title ?? "N/A"}</td>
-            </tr>
-            <tr>
-              <th>Description</th>
-              <td>{responsePayload.metadata.parsedDocument.description ?? "N/A"}</td>
-            </tr>
-            <tr>
-              <th>Fetch Status</th>
-              <td>{responsePayload.metadata.fetch.statusCode}</td>
-            </tr>
-            <tr>
-              <th>Content Type</th>
-              <td>{responsePayload.metadata.fetch.contentType ?? "Unknown"}</td>
-            </tr>
-            <tr>
-              <th>HTML Size (bytes)</th>
-              <td>{responsePayload.metadata.fetch.htmlSizeBytes}</td>
-            </tr>
-            <tr>
-              <th>Entry page crawl</th>
-              <td>First page in crawl order (used for title/description snapshot)</td>
-            </tr>
-          </tbody>
-        </table>
-        {metadataData?.metaTags?.length ? (
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Meta Tag</th>
-                  <th>Content</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metadataData.metaTags.slice(0, 15).map((tag) => (
-                  <tr key={`${tag.name}-${tag.content}`}>
-                    <td>{tag.name}</td>
-                    <td>{tag.content || "Empty"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
-
-      {headingData ? (
-        <section className="panel">
-          <h2>Heading Structure</h2>
-          <div className="chartWrap">
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart
-                data={[
-                  { level: "H1", count: headingData.counts.h1 },
-                  { level: "H2", count: headingData.counts.h2 },
-                  { level: "H3", count: headingData.counts.h3 },
-                ]}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="level" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#2563eb" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Level</th>
-                  {showHeadingPageColumn ? <th>Page</th> : null}
-                  <th>Text</th>
-                </tr>
-              </thead>
-              <tbody>
-                {headingData.hierarchy.slice(0, 20).map((heading, index) => (
-                  <tr key={`${heading.pageUrl ?? "single"}-${heading.level}-${index}`}>
-                    <td>{heading.level.toUpperCase()}</td>
-                    {showHeadingPageColumn ? <td className="cellMuted">{heading.pageUrl ?? "—"}</td> : null}
-                    <td>{heading.text || "Empty"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {linkData ? (
-        <section className="panel">
-          <h2>Links</h2>
-          <div className="chartWrap">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: "Internal", value: linkData.counts.internal },
-                    { name: "External", value: linkData.counts.external },
-                  ]}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  fill="#16a34a"
-                />
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="twoCol">
-            <div className="tableWrap">
-              <h3>Internal Links</h3>
+        <div className="tabPanel">
+          {activeTabId === "page-metadata" ? (
+            <div>
+              <h3>Page Metadata</h3>
               <table>
                 <tbody>
-                  {linkData.internalLinks.slice(0, 50).map((url) => (
-                    <tr key={url}>
-                      <td>{url}</td>
+                  <tr>
+                    <th>Document Title</th>
+                    <td>{responsePayload.metadata.parsedDocument.title ?? "N/A"}</td>
+                  </tr>
+                  <tr>
+                    <th>Description</th>
+                    <td>{responsePayload.metadata.parsedDocument.description ?? "N/A"}</td>
+                  </tr>
+                  <tr>
+                    <th>Fetch Status</th>
+                    <td>{responsePayload.metadata.fetch.statusCode}</td>
+                  </tr>
+                  <tr>
+                    <th>Content Type</th>
+                    <td>{responsePayload.metadata.fetch.contentType ?? "Unknown"}</td>
+                  </tr>
+                </tbody>
+              </table>
+              {metadataData?.metaTags?.length ? (
+                <div className="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Meta Tag</th>
+                        <th>Content</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {metadataData.metaTags.slice(0, 20).map((tag) => (
+                        <tr key={`${tag.name}-${tag.content}`}>
+                          <td>{tag.name}</td>
+                          <td>{tag.content || "Empty"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {activeTabId === "heading-structure" && headingData ? (
+            <div>
+              <h3>Heading Structure</h3>
+              <div className="chartWrap">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={[
+                      { level: "H1", count: headingData.counts.h1 },
+                      { level: "H2", count: headingData.counts.h2 },
+                      { level: "H3", count: headingData.counts.h3 },
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="level" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#2563eb" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Level</th>
+                      {showHeadingPageColumn ? <th>Page</th> : null}
+                      <th>Text</th>
                     </tr>
-                  ))}
+                  </thead>
+                  <tbody>
+                    {headingData.hierarchy.slice(0, 40).map((heading, index) => (
+                      <tr key={`${heading.pageUrl ?? "single"}-${heading.level}-${index}`}>
+                        <td>{heading.level.toUpperCase()}</td>
+                        {showHeadingPageColumn ? <td className="cellMuted">{heading.pageUrl ?? "—"}</td> : null}
+                        <td>{heading.text || "Empty"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          {activeTabId === "link-analysis" && linkData ? (
+            <div>
+              <h3>Links</h3>
+              <div className="chartWrap">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Internal", value: linkData.counts.internal },
+                        { name: "External", value: linkData.counts.external },
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      fill="#16a34a"
+                    />
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="twoCol">
+                <div className="tableWrap">
+                  <h3>Internal Links</h3>
+                  <table>
+                    <tbody>
+                      {linkData.internalLinks.slice(0, 50).map((url) => (
+                        <tr key={url}>
+                          <td>{url}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="tableWrap">
+                  <h3>External Links</h3>
+                  <table>
+                    <tbody>
+                      {linkData.externalLinks.slice(0, 50).map((url) => (
+                        <tr key={url}>
+                          <td>{url}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {activeTabId === "content-analysis" && contentData ? (
+            <div>
+              <h3>Content</h3>
+              <table>
+                <tbody>
+                  <tr>
+                    <th>Word Count</th>
+                    <td>{contentData.wordCount}</td>
+                  </tr>
+                  <tr>
+                    <th>Estimated Reading Time</th>
+                    <td>{contentData.estimatedReadingTimeMinutes} minute(s)</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="chartWrap">
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={contentData.keywordFrequency.slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="keyword" interval={0} angle={-25} textAnchor="end" height={75} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#7c3aed" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Keyword</th>
+                      <th>Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contentData.keywordFrequency.slice(0, 20).map((keyword) => (
+                      <tr key={keyword.keyword}>
+                        <td>{keyword.keyword}</td>
+                        <td>{keyword.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          {activeTabId === "image-analysis" && imageData ? (
+            <div>
+              <h3>Images</h3>
+              <div className="chartWrap">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={[
+                      { name: "With Alt", value: imageData.imagesWithAltText },
+                      { name: "Missing Alt", value: imageData.imagesMissingAltText },
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#ea580c" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <table>
+                <tbody>
+                  <tr>
+                    <th>Total Images</th>
+                    <td>{imageData.totalImages}</td>
+                  </tr>
+                  <tr>
+                    <th>Alt Coverage</th>
+                    <td>{imageData.altCoveragePercent}%</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
-            <div className="tableWrap">
-              <h3>External Links</h3>
-              <table>
-                <tbody>
-                  {linkData.externalLinks.slice(0, 50).map((url) => (
-                    <tr key={url}>
-                      <td>{url}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {contentData ? (
-        <section className="panel">
-          <h2>Content</h2>
-          <table>
-            <tbody>
-              <tr>
-                <th>Word Count</th>
-                <td>{contentData.wordCount}</td>
-              </tr>
-              <tr>
-                <th>Estimated Reading Time</th>
-                <td>{contentData.estimatedReadingTimeMinutes} minute(s)</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="chartWrap">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={contentData.keywordFrequency.slice(0, 10)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="keyword" interval={0} angle={-25} textAnchor="end" height={75} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#7c3aed" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Keyword</th>
-                  <th>Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contentData.keywordFrequency.slice(0, 20).map((keyword) => (
-                  <tr key={keyword.keyword}>
-                    <td>{keyword.keyword}</td>
-                    <td>{keyword.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {imageData ? (
-        <section className="panel">
-          <h2>Images</h2>
-          <div className="chartWrap">
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart
-                data={[
-                  { name: "With Alt", value: imageData.imagesWithAltText },
-                  { name: "Missing Alt", value: imageData.imagesMissingAltText },
-                ]}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#ea580c" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <table>
-            <tbody>
-              <tr>
-                <th>Total Images</th>
-                <td>{imageData.totalImages}</td>
-              </tr>
-              <tr>
-                <th>Alt Coverage</th>
-                <td>{imageData.altCoveragePercent}%</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-      ) : null}
+          ) : null}
+        </div>
+      </section>
     </div>
   );
 }

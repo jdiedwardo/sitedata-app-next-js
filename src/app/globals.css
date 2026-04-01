@@ -17,6 +17,16 @@ main {
   padding: 0 1rem;
 }
 
+.logoHeader {
+  margin-bottom: 0.75rem;
+}
+
+.logoHeader img {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+}
+
 h1,
 h2,
 h3 {
@@ -74,6 +84,23 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.buttonContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.buttonIcon {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+}
+
+.buttonIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
 .results {
   margin-top: 1rem;
 }
@@ -107,6 +134,30 @@ td {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+}
+
+.tabRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.tabButton {
+  background: #e5e7eb;
+  color: #111827;
+  border: 1px solid #d1d5db;
+}
+
+.tabButton.active {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #1f2937;
+}
+
+.tabPanel {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.9rem;
 }
 
 .statusMessage {
