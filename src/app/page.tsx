@@ -6,6 +6,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -30,6 +31,15 @@ interface LinkModuleData {
   internalLinks: string[];
   externalLinks: string[];
   counts: { internal: number; external: number };
+  brokenLinks: Array<{ url: string; scope: "internal" | "external"; reason: string }>;
+  linkProbe: {
+    probedCount: number;
+    totalUniqueCount: number;
+    maxProbes: number;
+    truncated: boolean;
+    probedInternalCount: number;
+    probedExternalCount: number;
+  };
 }
 
 interface ContentModuleData {
@@ -48,6 +58,26 @@ interface ImageModuleData {
 function getModuleData<TData>(moduleResults: AnalyzerResult[], moduleId: string): TData | null {
   const result = moduleResults.find((item) => item.moduleId === moduleId);
   return (result?.data as TData | undefined) ?? null;
+}
+
+function buildLinksPieChartData(linkData: LinkModuleData): Array<{ name: string; value: number; fill: string }> {
+  const brokenInternal = linkData.brokenLinks.filter((entry) => entry.scope === "internal").length;
+  const brokenExternal = linkData.brokenLinks.filter((entry) => entry.scope === "external").length;
+  const probedInternal = linkData.linkProbe.probedInternalCount;
+  const probedExternal = linkData.linkProbe.probedExternalCount;
+  const okInternal = Math.max(0, probedInternal - brokenInternal);
+  const okExternal = Math.max(0, probedExternal - brokenExternal);
+  const notChecked = Math.max(0, linkData.linkProbe.totalUniqueCount - linkData.linkProbe.probedCount);
+
+  const slices = [
+    { name: "Internal (reachable)", value: okInternal, fill: "#2563eb" },
+    { name: "Internal (broken)", value: brokenInternal, fill: "#dc2626" },
+    { name: "External (reachable)", value: okExternal, fill: "#16a34a" },
+    { name: "External (broken)", value: brokenExternal, fill: "#ea580c" },
+    { name: "Not checked", value: notChecked, fill: "#9ca3af" },
+  ];
+
+  return slices.filter((slice) => slice.value > 0);
 }
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
@@ -263,6 +293,7 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
   const metadataData = getModuleData<MetadataModuleData>(responsePayload.moduleResults, "page-metadata");
   const headingData = getModuleData<HeadingModuleData>(responsePayload.moduleResults, "heading-structure");
   const linkData = getModuleData<LinkModuleData>(responsePayload.moduleResults, "link-analysis");
+  const linkPieData = linkData ? buildLinksPieChartData(linkData) : [];
   const contentData = getModuleData<ContentModuleData>(responsePayload.moduleResults, "content-analysis");
   const imageData = getModuleData<ImageModuleData>(responsePayload.moduleResults, "image-analysis");
   const showHeadingPageColumn = headingData?.hierarchy.some((heading) => heading.pageUrl) ?? false;
@@ -462,24 +493,76 @@ function AnalysisResults({ responsePayload }: { responsePayload: AnalyzeWebsiteR
           {activeTabId === "link-analysis" && linkData ? (
             <div>
               <h3>Links</h3>
+              <table>
+                <tbody>
+                  <tr>
+                    <th>Links checked</th>
+                    <td>
+                      {linkData.linkProbe.probedCount} of {linkData.linkProbe.totalUniqueCount} unique URLs
+                      {linkData.linkProbe.truncated
+                        ? ` (capped at ${linkData.linkProbe.maxProbes}; increase limit in code if needed)`
+                        : ""}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Broken links found</th>
+                    <td>{linkData.brokenLinks.length}</td>
+                  </tr>
+                </tbody>
+              </table>
+              {linkData.brokenLinks.length > 0 ? (
+                <div className="tableWrap">
+                  <h4>Broken links</h4>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Scope</th>
+                        <th>URL</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {linkData.brokenLinks.map((entry) => (
+                        <tr key={entry.url}>
+                          <td>{entry.scope}</td>
+                          <td className="cellMuted">{entry.url}</td>
+                          <td>{entry.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="statusMessage">No broken links among the URLs checked.</p>
+              )}
+              <h4>Link health (unique URLs)</h4>
+              <p className="chartCaption">
+                Based on probed links (internal and external are sampled in turn up to the probe limit): reachable vs
+                broken, plus any URLs not checked when the limit is reached.
+              </p>
               <div className="chartWrap">
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Internal", value: linkData.counts.internal },
-                        { name: "External", value: linkData.counts.external },
-                      ]}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#16a34a"
-                    />
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {linkPieData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={linkPieData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={88}
+                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {linkPieData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} stroke="#ffffff" strokeWidth={1} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [String(value ?? ""), "Count"]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="statusMessage">No links to chart.</p>
+                )}
               </div>
               <div className="twoCol">
                 <div className="tableWrap">

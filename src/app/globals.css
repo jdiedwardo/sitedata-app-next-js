@@ -126,8 +126,16 @@ td {
 
 .chartWrap {
   width: 100%;
-  height: 260px;
+  min-height: 260px;
+  height: 280px;
   margin: 0.5rem 0 0.75rem;
+}
+
+.chartCaption {
+  margin: 0 0 0.5rem;
+  font-size: 0.88rem;
+  color: #4b5563;
+  max-width: 52rem;
 }
 
 .twoCol {
