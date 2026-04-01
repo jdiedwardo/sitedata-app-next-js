@@ -53,6 +53,35 @@ export class ContentAnalyzer implements AnalyticsModule {
       "site",
       "read",
       "more",
+      // Carousel / controls / icon labels often left inside main content
+      "forward",
+      "backward",
+      "backwards",
+      "arrow",
+      "arrows",
+      "chevron",
+      "chevrons",
+      "prev",
+      "swiper",
+      "carousel",
+      "slide",
+      "slides",
+      "dot",
+      "dots",
+      "play",
+      "pause",
+      "mute",
+      "unmute",
+      "fullscreen",
+      "expand",
+      "collapse",
+      "scroll",
+      "swipe",
+      "skip",
+      "close",
+      "open",
+      "loading",
+      "spinner",
     ]);
 
     const frequencyMap = new Map<string, number>();
@@ -80,15 +109,70 @@ export class ContentAnalyzer implements AnalyticsModule {
   }
 }
 
+/**
+ * Best-effort "visible text" without a headless browser: drop nodes that are typically
+ * hidden from view (sr-only, aria-hidden, display:none, etc.). Cheerio cannot know CSS
+ * from stylesheets, so some hidden text may remain; use Playwright if you need pixel-accurate layout text.
+ */
+const NON_VISIBLE_AND_CHROME_SELECTOR = [
+  "script",
+  "style",
+  "noscript",
+  "template",
+  "svg",
+  "nav",
+  "header",
+  "footer",
+  "aside",
+  "form",
+  "[hidden]",
+  '[aria-hidden="true"]',
+  ".sr-only",
+  ".sr-only-focusable",
+  ".visually-hidden",
+  ".screen-reader-text",
+  ".visuallyhidden",
+  ".skip-link",
+  ".skip-to-content",
+  '[class*="sr-only"]',
+  '[class*="visually-hidden"]',
+  '[class*="screen-reader"]',
+  "dialog:not([open])",
+].join(", ");
+
+function shouldRemoveElementForInlineStyle(styleAttr: string): boolean {
+  const style = styleAttr.toLowerCase();
+  if (/display\s*:\s*none/.test(style)) {
+    return true;
+  }
+  if (/visibility\s*:\s*hidden/.test(style)) {
+    return true;
+  }
+  if (/\bopacity\s*:\s*0(?:\.0+)?(?!\d)/.test(style)) {
+    return true;
+  }
+  if (/clip\s*:\s*rect\s*\(\s*0(?:px)?\s*,\s*0(?:px)?\s*,\s*0(?:px)?\s*,\s*0(?:px)?\s*\)/.test(style)) {
+    return true;
+  }
+  return false;
+}
+
 function extractLikelyContentText(dom: ReturnType<typeof getParsedDocument>["dom"]): string {
-  const clonedRoot = dom.root().clone();
+  const root = dom.root().clone();
 
-  // Remove common template/UI containers and non-readable nodes.
-  clonedRoot.find("script, style, noscript, nav, header, footer, aside, form, svg").remove();
+  root.find(NON_VISIBLE_AND_CHROME_SELECTOR).remove();
 
-  const mainCandidates = clonedRoot.find("main, article, [role='main']");
-  const extractedText =
-    (mainCandidates.length > 0 ? mainCandidates.first().text() : clonedRoot.find("body").text()) ?? "";
+  root.find("[style]").each((_, element) => {
+    const node = dom(element);
+    const styleAttr = node.attr("style");
+    if (styleAttr && shouldRemoveElementForInlineStyle(styleAttr)) {
+      node.remove();
+    }
+  });
+
+  const mainCandidates = root.find("main, article, [role='main']");
+  const contentRoot = mainCandidates.length > 0 ? mainCandidates.first() : root.find("body");
+  const extractedText = contentRoot.text() ?? "";
 
   return extractedText.replace(/\s+/g, " ").trim().toLowerCase();
 }
